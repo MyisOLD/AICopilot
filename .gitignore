@@ -1,0 +1,9 @@
+.coding-aider-plans/
+build/
+dist/
+
+*.xml
+
+*.spec
+
+test.*

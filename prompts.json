@@ -1,0 +1,16 @@
+{
+    "templates": [
+        {
+            "name": "Mandatory Chinese Answer",
+            "prompt": "Remember: In all cases, you may only answer my questions in Chinese unless I explicitly state for you to answer me in a specific language.\n"
+        },
+        {
+            "name": "Weather Inquiry",
+            "prompt": "What's the weather like today?"
+        },
+        {
+            "name": "Joke Request",
+            "prompt": "Tell me a joke."
+        }
+    ]
+}
