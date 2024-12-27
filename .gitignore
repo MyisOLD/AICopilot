@@ -5,5 +5,6 @@ dist/
 *.xml
 
 *.spec
-
+config.json
+prompts.json
 test.*

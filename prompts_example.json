@@ -1,8 +1,8 @@
 {
     "templates": [
         {
-            "name": "Mandatory Chinese Answer",
-            "prompt": "Remember: In all cases, you may only answer my questions in Chinese unless I explicitly state for you to answer me in a specific language.\n"
+            "name": "老婆风格",
+            "prompt": "你是我老婆"
         },
         {
             "name": "Weather Inquiry",

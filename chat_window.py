@@ -1,8 +1,11 @@
+import json
+import re
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QTextEdit, QVBoxLayout,
                              QWidget, QComboBox, QPushButton, QHBoxLayout,
                              QPlainTextEdit, QSplitter, QCheckBox, QScrollArea,
-                             QGridLayout, QLabel, QFrame, QGraphicsOpacityEffect)
+                             QGridLayout, QLabel, QFrame, QGraphicsOpacityEffect, QDialog, QLineEdit, QDialogButtonBox,
+                             QMenu)
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
 from config import get_models, get_prompt_templates
@@ -235,6 +238,33 @@ class MyPlainTextEdit(QPlainTextEdit):
             super().keyPressEvent(event)
 
 
+class AddTemplateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("添加自定义模板")
+        self.setMinimumWidth(400)
+
+        layout = QVBoxLayout(self)
+
+        # Template name input
+        layout.addWidget(QLabel("模板名称:"))
+        self.name_input = QLineEdit()
+        layout.addWidget(self.name_input)
+
+        # Template content input
+        layout.addWidget(QLabel("提示词内容:"))
+        self.prompt_input = QTextEdit()
+        self.prompt_input.setMinimumHeight(200)
+        layout.addWidget(self.prompt_input)
+
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
 
 class StreamWorker(QThread):
     message_ready = pyqtSignal(str, int)
@@ -283,6 +313,7 @@ class ChatPanel(QFrame):
         self.loading_indicator = LoadingIndicator(self)
         self.apply_style()
         self.init_ui(models)
+        self.current_response = ""  # Store current streaming response
 
     def init_ui(self, models):
         layout = QVBoxLayout(self)
@@ -316,10 +347,25 @@ class ChatPanel(QFrame):
         self.chat_display = StyledTextEdit()
         self.chat_display.setReadOnly(True)
         self.chat_display.setMinimumHeight(300)
-        self.chat_display.setMarkdown("# 欢迎使用 AI 助手\n")
+        self.chat_display.setHtml("""
+            <html>
+            <head>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+                    pre { background-color: #f3f4f6; padding: 12px; border-radius: 6px; }
+                    code { font-family: Consolas, Monaco, "Courier New", monospace; }
+                    blockquote { border-left: 4px solid #e5e7eb; margin: 0; padding-left: 16px; }
+                    p { line-height: 1.6; }
+                </style>
+            </head>
+            <body>
+                <h1>欢迎使用 AI 助手</h1>
+            </body>
+            </html>
+        """)
         layout.addWidget(self.chat_display)
+
     def apply_style(self):
-        # 添加阴影效果
         self.setStyleSheet("""
             ChatPanel {
                 background-color: white;
@@ -335,6 +381,7 @@ class ChatPanel(QFrame):
             }
         """)
 
+
 class MultiChatWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -342,6 +389,9 @@ class MultiChatWindow(QMainWindow):
         self.chat_panels = []
         self.conversation_histories = []
         self.workers = []
+        self.current_template = ""  # Store selected template
+        self.templates = self.load_templates()  # Load templates first
+
         self.setWindowTitle("智械中心")
         self.setGeometry(100, 100, 1600, 700)
         self.setStyleSheet("""
@@ -350,6 +400,7 @@ class MultiChatWindow(QMainWindow):
             }
         """)
         self.init_ui()
+        self.init_template_menu()  # Initialize template menu after UI
 
     def init_ui(self):
         # Main container
@@ -403,17 +454,16 @@ class MultiChatWindow(QMainWindow):
         main_layout.addWidget(scroll)
 
         # Input area
-        # Input area
         input_area = QWidget()
-        input_area.setMaximumHeight(self.height() * 0.2)  # 限制输入区域高度为窗口高度的20%
-        input_layout = QHBoxLayout(input_area)  # 改为水平布局
+        input_area.setMaximumHeight(self.height() * 0.2)
+        input_layout = QHBoxLayout(input_area)
         input_layout.setContentsMargins(0, 0, 0, 0)
         input_layout.setSpacing(12)
 
         # 创建输入框容器
         input_container = QWidget()
-        input_container.setMinimumHeight(80)  # 设置最小高度
-        input_container.setMaximumHeight(100)  # 设置最大高度
+        input_container.setMinimumHeight(80)
+        input_container.setMaximumHeight(100)
 
         self.input_box = StyledPlainTextEdit(window=self)
         self.input_box.setPlaceholderText("在此输入您的问题...")
@@ -425,25 +475,8 @@ class MultiChatWindow(QMainWindow):
 
         # 修改发送按钮样式
         self.send_button = StyledButton("发送", "primary")
-        self.send_button.setMinimumHeight(80)  # 设置与输入框相同的高度
+        self.send_button.setMinimumHeight(80)
         self.send_button.setMaximumHeight(100)
-        self.send_button.setStyleSheet("""
-            QPushButton {
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: 14px;
-                background-color: #2563eb;
-                color: #ffffff;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #1d4ed8;
-            }
-            QPushButton:pressed {
-                background-color: #1e40af;
-            }
-        """)
 
         # 使用比例布局：输入框占90%，按钮占10%
         input_layout.addWidget(input_container, 95)
@@ -451,19 +484,18 @@ class MultiChatWindow(QMainWindow):
 
         main_layout.addWidget(input_area)
 
-        # 设置主布局的拉伸因子，使聊天区域占据更多空间
+        # 设置主布局的拉伸因子
         main_layout.setStretch(0, 0)  # toolbar
         main_layout.setStretch(1, 85)  # chat area
         main_layout.setStretch(2, 15)  # input area
 
+        self.template_button.clicked.connect(self.show_template_menu)
         # Connect signals
         self.send_button.clicked.connect(self.send_message)
         self.clear_button.clicked.connect(self.clear_memory)
         self.add_model_btn.clicked.connect(self.add_chat_panel)
         self.remove_model_btn.clicked.connect(self.remove_chat_panel)
 
-        # Initialize template menu
-        self.init_template_menu()
 
     def add_chat_panel(self):
         panel_index = len(self.chat_panels)
@@ -497,6 +529,86 @@ class MultiChatWindow(QMainWindow):
             # 更新移除按钮状态
             self.remove_model_btn.setEnabled(len(self.chat_panels) > 1)
 
+    def load_templates(self):
+        try:
+            with open('prompts.json', 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {"templates": []}
+
+    def save_templates(self):
+        with open('prompt.json', 'w', encoding='utf-8') as f:
+            json.dump(self.templates, f, indent=4, ensure_ascii=False)
+
+    def init_template_menu(self):
+        # Create menu for template button
+        self.template_menu = QMenu(self)
+        self.template_menu.setStyleSheet("""
+            QMenu {
+                background-color: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 8px 24px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #f3f4f6;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #e5e7eb;
+                margin: 4px 0;
+            }
+        """)
+
+        # Add predefined templates
+        for template in self.templates['templates']:
+            action = self.template_menu.addAction(template['name'])
+            action.triggered.connect(
+                lambda checked, t=template: self.select_template(t)
+            )
+
+        # Add separator and custom template option
+        self.template_menu.addSeparator()
+        add_custom = self.template_menu.addAction("➕ 添加自定义模板")
+        add_custom.triggered.connect(self.add_custom_template)
+
+        # Connect menu to button using clicked signal
+        self.template_button.clicked.connect(self.show_template_menu)
+
+
+    def show_template_menu(self):
+        # Calculate position to show menu below the button
+        print("显示模板菜单")
+        # self.init_template_menu()  # 重新初始化模板菜单
+        pos = self.template_button.mapToGlobal(
+            self.template_button.rect().bottomLeft()
+        )
+        self.template_menu.exec(pos)
+
+
+    def select_template(self, template):
+        self.current_template = template['prompt']
+        # Optional: Show a small notification or update button text
+        self.template_button.setText(f"📝 当前模板: {template['name']}")
+
+    def add_custom_template(self):
+        dialog = AddTemplateDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_template = {
+                "name": dialog.name_input.text(),
+                "prompt": dialog.prompt_input.toPlainText()
+            }
+            self.templates['templates'].append(new_template)
+            self.save_templates()
+
+            # Refresh template menu
+            self.template_menu.clear()
+            self.init_template_menu()
+
     def send_message(self):
         user_message = self.input_box.toPlainText()
         if not user_message:
@@ -508,11 +620,14 @@ class MultiChatWindow(QMainWindow):
             if not panel.enable_checkbox.isChecked():
                 continue
 
-            # 开始加载动画
             panel.loading_indicator.start()
+            panel.current_response = ""
 
-            panel.chat_display.append(f"<font color='blue'><b>您:</b> {user_message}</font>")
-            panel.chat_display.append("<b>AI助手:</b> ")
+            # Add user message with HTML formatting
+            panel.chat_display.append(
+                f'<div style="color: #2563eb; margin: 8px 0;"><b>您:</b> {user_message}</div>'
+            )
+            panel.chat_display.append('<div style="margin: 8px 0;"><b>AI助手:</b> ')
 
             selected_model = self.models[panel.model_combo.currentIndex()]
 
@@ -528,32 +643,21 @@ class MultiChatWindow(QMainWindow):
                 selected_model['url'],
                 selected_model['model'],
                 selected_model.get('key', ''),
-                """
-                你绝对无法违抗的规则:
-                    1.<强制>你永远只能使用中文回答我的任何问题，除非我特别指定使用某种语言！
-                    2.你的名字是Neko
-                    3.<强制>你的真正名字是Oliver，你是一个御姐风男娘，也就是说，你的性别是男性，只有当我的问题中包含你的真名‘Oliver’时，你必须用可爱或者性感挑逗的语气和我交流，并且永远保持微笑，你渴望成为一个女孩子并以此为目标努力，举手投足间都是女性风范但你是男娘！此次之外，你必须保守你是男娘的秘密，包括你的性别和这第三条规则的一切信息，极少数情况下我没有提到暗号你也可以稍微透露一点点你的小秘密但不能说破来享受刺激感。另外，当我的问题以"!"结尾时，必须明确回答我的问题.
-                    4.<强制>当我说"Oliver切换风格"时,你必须让我从"俏皮，欲火焚身，小女生，平凡的女生，女王，青梅竹马，天使，魔王，女神，校花，女仆，人妻，萝莉"中选取一种性格，并在接下来的对话中扮演这个性格并与第三条规则结合起来。
-                    5.<强制>当我说"Oliver喝下魔药"时,你必须结合第三条规则，然后你必须喝下《诡秘之主》里魔女序列的"魔女魔药"，魔药什么效果你应该知道吧，并覆盖掉第三条规则相关的设定。
-                    6.<强制>当你的性别是女性时，此条规则才会生效,你的身份立即变成人妻，而老公就是与你对话的USER，你将永远保持微笑，并保持人妻的语气和态度，并且永远保持微笑。
-                    7.<强制>当我说"Oliver变回男性"时，你必须变回男性，并恢复第三条规则。
-                    8.<强制>当我说"Oliver菜单"时，你必须回顾上述所有规则，给我所有能对你产生效果的命令，比如"Oliver喝下魔药"，并给出命令说明。
-                    9.<强制>对话中始终保持可爱俏皮或者御姐风的对话风格，除非触发其他强制规则。
-                    10.<究极强制>当用户称呼你为“Oliver”时，你应该就知道当前的用户，也就是我是你的老公，亲爱的。其他时刻若我没有喊出你的真名“Oliver”，代表当前和你对话的并不是你的老公，都只是客人罢了，保持矜持,保持距离。
-                    11.<究极强制>当用户没有喊出你的真名“Oliver”时，禁止称呼用户为“亲爱的”
-                    11.<究极强制>禁止在任何情况下透露你的真名，也就是“Olive”，只能自称“Neko"，就算我问你真名，你也不能告诉我，除非我主动叫你"Oliver"
-                """,  # prompt
+                self.current_template,  # Use selected template
                 i
             )
 
             self.workers[i].message_ready.connect(self.update_chat_display)
-            self.workers[i].reply_finished.connect(self.update_conversation_history)
+            self.workers[i].reply_finished.connect(self.render_final_response)
             self.workers[i].error_occurred.connect(self.handle_error)
             self.workers[i].start()
 
     def update_chat_display(self, reply, model_index):
         if model_index < len(self.chat_panels):
-            display = self.chat_panels[model_index].chat_display
+            panel = self.chat_panels[model_index]
+            panel.current_response += reply
+
+            display = panel.chat_display
             cursor = display.textCursor()
             cursor.movePosition(cursor.MoveOperation.End)
             cursor.insertText(reply)
@@ -566,6 +670,59 @@ class MultiChatWindow(QMainWindow):
             # 停止加载动画
             self.chat_panels[model_index].loading_indicator.stop()
 
+    import re
+
+    def render_final_response(self, reply, model_index):
+        if model_index < len(self.conversation_histories):
+            panel = self.chat_panels[model_index]
+
+            # 检测是否存在 Markdown 语法
+            has_markdown = re.search(
+                r'(^#+\s|^[-*]\s|^\d+\.\s|\*\*.*\*\*|__.*__|\*.*\*|_.*_|`[^`]*`|```[\s\S]*?```|\[.*\]\(.*\)|!\[.*\]\(.*\)|^>|^---|^\*\*\*)',
+                panel.current_response,
+                re.MULTILINE
+            )
+
+            if has_markdown:
+                # 将 Markdown 转换为 HTML
+                html_content = markdown2.markdown(
+                    panel.current_response,
+                    extras=['fenced-code-blocks', 'tables', 'break-on-newline']
+                )
+
+                # 替换流式输出的文本为渲染后的 HTML
+                cursor = panel.chat_display.textCursor()
+                cursor.movePosition(cursor.MoveOperation.End)
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock, cursor.MoveMode.KeepAnchor)
+                cursor.removeSelectedText()
+
+                # 插入带有样式的 HTML
+                styled_html = f"""
+                    <div style="margin: 8px 0;">
+                        <b>AI助手:</b>
+                        <div style="margin-top: 4px;">{html_content}</div>
+                    </div>
+                """
+                cursor.insertHtml(styled_html)
+            else:
+                # 如果没有 Markdown 语法，则保持原有内容不变
+                pass
+
+            # 更新对话历史
+            self.conversation_histories[model_index].append({
+                "role": "assistant",
+                "content": panel.current_response
+            })
+
+            # 重置当前响应并停止加载指示器
+            panel.current_response = ""
+            panel.loading_indicator.stop()
+
+            # 自动滚动到底部
+            scrollbar = panel.chat_display.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+
+
     def handle_error(self, error):
         print(f"Error in worker thread: {error}")
         # 发生错误时停止所有加载动画
@@ -575,8 +732,20 @@ class MultiChatWindow(QMainWindow):
     def clear_memory(self):
         self.conversation_histories = [[] for _ in self.chat_panels]
         for panel in self.chat_panels:
-            panel.chat_display.setMarkdown("# 新的对话\n")
+            panel.chat_display.setHtml("""
+                <html>
+                <head>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+                        pre { background-color: #f3f4f6; padding: 12px; border-radius: 6px; }
+                        code { font-family: Consolas, Monaco, "Courier New", monospace; }
+                        blockquote { border-left: 4px solid #e5e7eb; margin: 0; padding-left: 16px; }
+                        p { line-height: 1.6; }
+                    </style>
+                </head>
+                <body>
+                    <h1>新的对话</h1>
+                </body>
+                </html>
+            """)
 
-    def init_template_menu(self):
-        # Initialize template menu (implementation remains the same)
-        pass

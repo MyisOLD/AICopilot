@@ -13,7 +13,7 @@ def create_exe():
     # PyInstaller参数
     args = [
         'main.py',  # 主程序入口
-        '--name=智械中心',  # 可执行文件名
+        '--name=智械中心V2',  # 可执行文件名
         '--windowed',  # 无控制台窗口
         # '--onefile',  # 打包成单个文件
         '--icon=app_icon.ico',  # 应用图标（如果有）
