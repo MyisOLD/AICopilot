@@ -1,17 +1,19 @@
 import json
+import os
 import re
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QTextEdit, QVBoxLayout,
                              QWidget, QComboBox, QPushButton, QHBoxLayout,
                              QPlainTextEdit, QSplitter, QCheckBox, QScrollArea,
                              QGridLayout, QLabel, QFrame, QGraphicsOpacityEffect, QDialog, QLineEdit, QDialogButtonBox,
-                             QMenu)
+                             QMenu, QMessageBox)
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer, QSettings
 from config import get_models, get_prompt_templates
 from api_handler import send_request
 import time
 import markdown2
+
 
 class StyledButton(QPushButton):
     def __init__(self, text, variant="default"):
@@ -224,8 +226,6 @@ class LoadingIndicator(QPushButton):
         self.current_dot = (self.current_dot + 1) % len(self.dots)
 
 
-
-
 class MyPlainTextEdit(QPlainTextEdit):
     def __init__(self, parent=None, window=None):
         super().__init__(parent)
@@ -265,6 +265,7 @@ class AddTemplateDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
 
 class StreamWorker(QThread):
     message_ready = pyqtSignal(str, int)
@@ -401,6 +402,114 @@ class MultiChatWindow(QMainWindow):
         """)
         self.init_ui()
         self.init_template_menu()  # Initialize template menu after UI
+        self.init_theme()
+        self.init_history()
+
+
+    def init_history(self):
+        # 检查是否存在历史记录文件，并提示用户是否恢复会话
+        if os.path.exists('history.json'):
+            reply = QMessageBox.question(self, '恢复会话', '是否恢复上次的会话？',
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.load_conversation_history()
+            else:
+                self.conversation_histories = [[] for _ in self.chat_panels]
+        else:
+            self.conversation_histories = [[] for _ in self.chat_panels]
+
+        # 添加清除历史记录的菜单选项
+        self.clear_history_action = QAction("清除历史记录", self)
+        self.settings_menu.addAction(self.clear_history_action)
+        self.clear_history_action.triggered.connect(self.clear_history)
+
+        # 定时保存历史记录
+        self.save_timer = QTimer()
+        self.save_timer.timeout.connect(self.save_conversation_history)
+        self.save_timer.start(60000)  # 每分钟保存一次
+
+    def save_conversation_history(self):
+        """保存对话历史到文件"""
+        with open('history.json', 'w') as f:
+            json.dump(self.conversation_histories, f)
+
+    def load_conversation_history(self):
+        """从文件加载对话历史"""
+        try:
+            with open('history.json', 'r') as f:
+                histories = json.load(f)
+            for i, panel in enumerate(self.chat_panels):
+                if i < len(histories):
+                    self.conversation_histories[i] = histories[i]
+                    # 加载对话到 chat_display
+                    for message in histories[i]:
+                        if message["role"] == "user":
+                            panel.chat_display.append(
+                                f'<div style="color: #2563eb; margin: 8px 0;"><b>您:</b> {message["content"]}</div>')
+                        else:
+                            panel.chat_display.append(
+                                f'<div style="margin: 8px 0;"><b>AI助手:</b> {message["content"]}</div>')
+        except Exception as e:
+            print(f"加载历史记录失败: {e}")
+
+    def clear_history(self):
+        """清除所有历史记录"""
+        reply = QMessageBox.question(self, '清除历史记录', '确定要清除所有历史记录吗？',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self.conversation_histories = [[] for _ in self.chat_panels]
+            with open('history.json', 'w') as f:
+                json.dump([], f)
+            for panel in self.chat_panels:
+                panel.chat_display.clear()
+    def init_theme(self):
+        # 定义白天和黑夜模式的样式表
+        self.day_style = """
+            QMainWindow { background-color: #f3f4f6; }
+            QTextEdit { background-color: white; color: #111827; }
+            QPushButton { background-color: #f3f4f6; color: #111827; }
+            QComboBox { background-color: white; color: #111827; }
+            QCheckBox { color: #111827; }
+            QMenu { background-color: white; color: #111827; }
+        """
+        self.night_style = """
+            QMainWindow { background-color: #1e1e1e; }
+            QTextEdit { background-color: #2d2d2d; color: #ffffff; }
+            QPushButton { background-color: #333333; color: #ffffff; }
+            QComboBox { background-color: #333333; color: #ffffff; }
+            QCheckBox { color: #ffffff; }
+            QMenu { background-color: #333333; color: #ffffff; }
+        """
+
+        # 创建主题菜单
+        self.menu_bar = self.menuBar()
+        self.settings_menu = self.menu_bar.addMenu("设置")
+        self.theme_menu = self.settings_menu.addMenu("主题")
+
+        self.day_action = QAction("白天模式", self)
+        self.night_action = QAction("黑夜模式", self)
+        self.theme_menu.addAction(self.day_action)
+        self.theme_menu.addAction(self.night_action)
+
+        # 连接主题切换动作
+        self.day_action.triggered.connect(lambda: self.set_style(self.day_style))
+        self.night_action.triggered.connect(lambda: self.set_style(self.night_style))
+
+        # 读取保存的主题设置
+        settings = QSettings("MyCompany", "ChatApp")
+        theme = settings.value("theme", "day")
+        if theme == "night":
+            self.setStyleSheet(self.night_style)
+        else:
+            self.setStyleSheet(self.day_style)
+
+    def set_style(self, style):
+        """设置样式并保存主题选择"""
+        self.setStyleSheet(style)
+        settings = QSettings("MyCompany", "ChatApp")
+        settings.setValue("theme", "day" if style == self.day_style else "night")
+
 
     def init_ui(self):
         # Main container
@@ -496,7 +605,6 @@ class MultiChatWindow(QMainWindow):
         self.add_model_btn.clicked.connect(self.add_chat_panel)
         self.remove_model_btn.clicked.connect(self.remove_chat_panel)
 
-
     def add_chat_panel(self):
         panel_index = len(self.chat_panels)
         panel = ChatPanel(panel_index, self.models)
@@ -537,7 +645,7 @@ class MultiChatWindow(QMainWindow):
             return {"templates": []}
 
     def save_templates(self):
-        with open('prompt.json', 'w', encoding='utf-8') as f:
+        with open('prompts.json', 'w', encoding='utf-8') as f:
             json.dump(self.templates, f, indent=4, ensure_ascii=False)
 
     def init_template_menu(self):
@@ -579,7 +687,6 @@ class MultiChatWindow(QMainWindow):
         # Connect menu to button using clicked signal
         self.template_button.clicked.connect(self.show_template_menu)
 
-
     def show_template_menu(self):
         # Calculate position to show menu below the button
         print("显示模板菜单")
@@ -588,7 +695,6 @@ class MultiChatWindow(QMainWindow):
             self.template_button.rect().bottomLeft()
         )
         self.template_menu.exec(pos)
-
 
     def select_template(self, template):
         self.current_template = template['prompt']
@@ -722,7 +828,6 @@ class MultiChatWindow(QMainWindow):
             scrollbar = panel.chat_display.verticalScrollBar()
             scrollbar.setValue(scrollbar.maximum())
 
-
     def handle_error(self, error):
         print(f"Error in worker thread: {error}")
         # 发生错误时停止所有加载动画
@@ -749,3 +854,10 @@ class MultiChatWindow(QMainWindow):
                 </html>
             """)
 
+    def closeEvent(self, event):
+        """在关闭窗口时保存主题设置"""
+        settings = QSettings("MyCompany", "ChatApp")
+        theme = "day" if self.styleSheet() == self.day_style else "night"
+        settings.setValue("theme", theme)
+        self.save_conversation_history()
+        super().closeEvent(event)
