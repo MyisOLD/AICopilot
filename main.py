@@ -8,7 +8,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     # 设置应用程序级别的字体
-    font = QFont("思源黑体", 10)
+    font = QFont("阿里巴巴普惠体 R", 10)
     app.setFont(font)
 
     window = MultiChatWindow()
