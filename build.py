@@ -69,6 +69,11 @@ def clean_directory(dir_path):
             time.sleep(0.1)
 
 
+import shutil
+import logging
+from pathlib import Path
+import PyInstaller.__main__
+
 def create_exe():
     """创建可执行文件"""
     try:
@@ -100,7 +105,7 @@ def create_exe():
             '--windowed',
             '--clean',
             '--noconfirm',
-            f'--distpath={dist_dir}',  # 直接输出到 dist/linux_x86_64
+            f'--distpath={dist_dir}',  # 直接输出到 dist/windows_x86_64
             '--icon=assets/app_icon.ico',
             '--log-level=INFO',
         ]
@@ -139,6 +144,7 @@ def create_exe():
     except Exception as e:
         logging.error(f"未预期的错误: {e}", exc_info=True)
         sys.exit(1)
+
 
 if __name__ == '__main__':
     create_exe()
