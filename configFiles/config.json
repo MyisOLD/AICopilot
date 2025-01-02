@@ -1,0 +1,95 @@
+{
+    "models": [
+        {
+            "name": "DeepSeek Chat",
+            "url": "https://api.deepseek.com",
+            "model": "deepseek-chat",
+            "key": "sk-319822674e044a7a9275bcb9f67e1051"
+        },
+        {
+            "name": "Gemini EXP",
+            "url": "https://api.aicnn.cn",
+            "model": "gemini-exp-1114",
+            "key": "sk-tfbRGrMch70dMl7p92pTTytsLLjfEaR9UhbkRxUQsv8yij04"
+        },
+        {
+            "name": "Yi Lightning",
+            "url": "https://api.lingyiwanwu.com/v1",
+            "model": "yi-lightning",
+            "key": "1c1bd38e22934743b1c38206b04b639d"
+        },
+        {
+            "name": "claude 3.5 haiku",
+            "url": "https://closeai.im",
+            "model": "claude-3-5-haiku-20241022",
+            "key":"sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "claude 3.5 sonnet",
+            "url": "https://closeai.im",
+            "model": "claude-3-5-sonnet-20241022",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "dalle 3",
+            "url": "https://closeai.im",
+            "model": "dall-e-3",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "flux",
+            "url": "https://closeai.im",
+            "model": "flux",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "flux-ultra",
+            "url": "https://closeai.im",
+            "model": "flux-ultra",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "Gemini 1.5 Flash",
+            "url": "https://closeai.im",
+            "model": "gemini-1.5-flash-latest",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "Gemini 1.5 Pro",
+            "url": "https://closeai.im",
+            "model": "gemini-1.5-pro-latest",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "GPT 4o",
+            "url": "https://closeai.im",
+            "model": "gpt-4o",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "GPT 4o mini",
+            "url": "https://closeai.im",
+            "model": "gpt-4o-mini",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "GPT o1",
+            "url": "https://closeai.im",
+            "model": "o1-preview",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        },
+        {
+            "name": "recraft",
+            "url": "https://closeai.im",
+            "model": "recraft-v3",
+            "key": "sk-iw7iz8De6GK9JSnmOzxIy6SrFvyrBPct48WXAc4L0O4YS131"
+        }
+
+    ],
+    "custom_prompts": [
+        {
+            "name": "Custom Greeting",
+            "prompt": "Hello, how can I assist you today?"
+        }
+    ]
+}
