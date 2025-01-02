@@ -1,397 +1,30 @@
 import json
 import os
 import re
-import sys
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QTextEdit, QVBoxLayout,
-                             QWidget, QComboBox, QPushButton, QHBoxLayout,
-                             QPlainTextEdit, QSplitter, QCheckBox, QScrollArea,
-                             QGridLayout, QLabel, QFrame, QGraphicsOpacityEffect, QDialog, QLineEdit, QDialogButtonBox,
-                             QMenu, QMessageBox)
-from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer, QSettings
-from config import get_models, get_prompt_templates
-from api_handler import send_request
-import time
+
 import markdown2
+from PyQt6.QtCore import QSettings, QTimer
+from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QDialog, QMenu, QHBoxLayout, QGridLayout, QScrollArea, \
+    QMessageBox
 
-
-class StyledButton(QPushButton):
-    def __init__(self, text, variant="default"):
-        super().__init__(text)
-        self.variant = variant
-        self.apply_style()
-
-    def apply_style(self):
-        base_style = """
-            QPushButton {
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                opacity: 0.9;
-            }
-        """
-
-        variants = {
-            "default": """
-                background-color: #f3f4f6;
-                color: #111827;
-                border: 1px solid #e5e7eb;
-            """,
-            "primary": """
-                background-color: #2563eb;
-                color: white;
-                border: none;
-            """,
-            "danger": """
-                background-color: #dc2626;
-                color: white;
-                border: none;
-            """
-        }
-
-        self.setStyleSheet(base_style + variants.get(self.variant, variants["default"]))
-
-
-class StyledComboBox(QComboBox):
-    def __init__(self):
-        super().__init__()
-        self.setStyleSheet("""
-            QComboBox {
-                padding: 8px 12px;
-                border: 1px solid #e5e7eb;
-                border-radius: 6px;
-                background-color: white;
-                min-width: 150px;
-            }
-            QComboBox:hover {
-                border-color: #2563eb;
-            }
-            QComboBox::drop-down {
-                border: none;
-            }
-            QComboBox::down-arrow {
-                image: url(assets/chevron-down.png);
-                width: 12px;
-                height: 12px;
-            }
-        """)
-
-
-class StyledCheckBox(QCheckBox):
-    def __init__(self, text):
-        super().__init__(text)
-        self.setStyleSheet("""
-            QCheckBox {
-                spacing: 8px;
-                font-size: 14px;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border: 1px solid #e5e7eb;
-                border-radius: 4px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #2563eb;
-                border-color: #2563eb;
-            }
-        """)
-
-
-class StyledTextEdit(QTextEdit):
-    def __init__(self):
-        super().__init__()
-        self.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #e5e7eb;
-                border-radius: 8px;
-                padding: 12px;
-                background-color: white;
-                color: #111827;
-                font-size: 14px;
-                line-height: 1.5;
-            }
-            QTextEdit:focus {
-                border-color: #2563eb;
-                outline: none;
-            }
-        """)
-
-
-class StyledPlainTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None, window=None):
-        super().__init__(parent)
-        self.window = window
-        self.setStyleSheet("""
-            QPlainTextEdit {
-                border: 1px solid #e5e7eb;
-                border-radius: 8px;
-                padding: 12px;
-                background-color: white;
-                color: #111827;
-                font-size: 14px;
-                line-height: 1.5;
-            }
-            QPlainTextEdit:focus {
-                border-color: #2563eb;
-                outline: none;
-            }
-        """)
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Return and not event.modifiers():
-            self.window.send_message()
-        else:
-            super().keyPressEvent(event)
-
-
-class AnimatedButton(QPushButton):
-    def __init__(self, text, variant="default"):
-        super().__init__(text)
-        self.variant = variant
-        self.apply_style()
-
-        # 添加点击动画效果
-        self._animation = QPropertyAnimation(self, b"geometry")
-        self._animation.setDuration(100)
-        self._animation.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-        # 添加悬停效果
-        self.opacity_effect = QGraphicsOpacityEffect()
-        self.setGraphicsEffect(self.opacity_effect)
-        self.opacity_effect.setOpacity(1.0)
-
-    def enterEvent(self, event):
-        animation = QPropertyAnimation(self.opacity_effect, b"opacity")
-        animation.setDuration(200)
-        animation.setStartValue(1.0)
-        animation.setEndValue(0.8)
-        animation.start()
-
-    def leaveEvent(self, event):
-        animation = QPropertyAnimation(self.opacity_effect, b"opacity")
-        animation.setDuration(200)
-        animation.setStartValue(0.8)
-        animation.setEndValue(1.0)
-        animation.start()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            geo = self.geometry()
-            self._animation.setStartValue(geo)
-            self._animation.setEndValue(geo.adjusted(2, 2, -2, -2))
-            self._animation.start()
-        super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            geo = self.geometry()
-            self._animation.setStartValue(geo)
-            self._animation.setEndValue(geo.adjusted(-2, -2, 2, 2))
-            self._animation.start()
-        super().mouseReleaseEvent(event)
-
-
-class LoadingIndicator(QPushButton):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(30, 30)
-        self.dots = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self.current_dot = 0
-        self.timer = QTimer()
-        self.timer.timeout.connect(self._rotate)
-        self.setVisible(False)
-        self.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                color: #2563eb;
-                font-size: 18px;
-            }
-        """)
-
-    def start(self):
-        self.setVisible(True)
-        self.timer.start(80)
-
-    def stop(self):
-        self.timer.stop()
-        self.setVisible(False)
-
-    def _rotate(self):
-        self.setText(self.dots[self.current_dot])
-        self.current_dot = (self.current_dot + 1) % len(self.dots)
-
-
-class MyPlainTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None, window=None):
-        super().__init__(parent)
-        self.window = window
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Return and not event.modifiers():
-            self.window.send_message()
-        else:
-            super().keyPressEvent(event)
-
-
-class AddTemplateDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("添加自定义模板")
-        self.setMinimumWidth(400)
-
-        layout = QVBoxLayout(self)
-
-        # Template name input
-        layout.addWidget(QLabel("模板名称:"))
-        self.name_input = QLineEdit()
-        layout.addWidget(self.name_input)
-
-        # Template content input
-        layout.addWidget(QLabel("提示词内容:"))
-        self.prompt_input = QTextEdit()
-        self.prompt_input.setMinimumHeight(200)
-        layout.addWidget(self.prompt_input)
-
-        # Buttons
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
-
-
-class StreamWorker(QThread):
-    message_ready = pyqtSignal(str, int)
-    reply_finished = pyqtSignal(str, int)
-    error_occurred = pyqtSignal(str)
-
-    def __init__(self, conversation_history, user_message, api_url, model_name, api_key, prompt, model_index):
-        super().__init__()
-        self.conversation_history = conversation_history
-        self.user_message = user_message
-        self.api_url = api_url
-        self.model_name = model_name
-        self.api_key = api_key
-        self.prompt = prompt
-        self.model_index = model_index
-        self.reply = ''
-
-    def run(self):
-        try:
-            response = send_request(self.conversation_history, self.user_message,
-                                    self.api_url, self.model_name, self.api_key, self.prompt)
-            if isinstance(response, str):
-                self.message_ready.emit(response, self.model_index)
-                return
-
-            for chunk in response:
-                if hasattr(chunk.choices[0].delta, 'content'):
-                    content = chunk.choices[0].delta.content
-                    if content:
-                        self.reply += content
-                        self.message_ready.emit(content, self.model_index)
-                        time.sleep(0.01)
-
-            self.reply_finished.emit(self.reply, self.model_index)
-            self.reply = ''
-        except Exception as e:
-            print(f"Streaming error: {str(e)}")
-            self.error_occurred.emit(str(e))
-
-
-class ChatPanel(QFrame):
-    def __init__(self, model_index, models, parent=None):
-        super().__init__(parent)
-        self.model_index = model_index
-        self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
-        self.loading_indicator = LoadingIndicator(self)
-        self.apply_style()
-        self.init_ui(models)
-        self.current_response = ""  # Store current streaming response
-
-    def init_ui(self, models):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
-
-        # Header section
-        header = QWidget()
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-
-        title = QLabel(f"模型 {self.model_index + 1}")
-        title.setStyleSheet("""
-            font-size: 16px;
-            font-weight: bold;
-            color: #111827;
-        """)
-
-        self.model_combo = StyledComboBox()
-        self.model_combo.addItems([model['name'] for model in models])
-
-        self.enable_checkbox = StyledCheckBox("启用")
-        self.enable_checkbox.setChecked(True)
-
-        header_layout.addWidget(title)
-        header_layout.addWidget(self.model_combo)
-        header_layout.addWidget(self.enable_checkbox)
-        layout.addWidget(header)
-
-        # Chat display
-        self.chat_display = StyledTextEdit()
-        self.chat_display.setReadOnly(True)
-        self.chat_display.setMinimumHeight(300)
-        self.chat_display.setHtml("""
-            <html>
-            <head>
-                <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-                    pre { background-color: #f3f4f6; padding: 12px; border-radius: 6px; }
-                    code { font-family: Consolas, Monaco, "Courier New", monospace; }
-                    blockquote { border-left: 4px solid #e5e7eb; margin: 0; padding-left: 16px; }
-                    p { line-height: 1.6; }
-                </style>
-            </head>
-            <body>
-                <h1>欢迎使用 AI 助手</h1>
-            </body>
-            </html>
-        """)
-        layout.addWidget(self.chat_display)
-
-    def apply_style(self):
-        self.setStyleSheet("""
-            ChatPanel {
-                background-color: white;
-                border: 1px solid #e5e7eb;
-                border-radius: 12px;
-                padding: 16px;
-                margin: 8px;
-            }
-            ChatPanel:hover {
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 
-                           0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                transition: box-shadow 0.3s ease-in-out;
-            }
-        """)
-
+from services import StreamWorker
+from .components.styled_widgets import StyledButton, StyledPlainTextEdit
+from .components.chat_panel import ChatPanel
+from .components.template_dialog import TemplateDialog
+from services.history_service import HistoryService
+from services.api_service import APIService
+from config import ConfigManager
 
 class MultiChatWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.models = get_models()
+        self.models = ConfigManager.get_models()
         self.chat_panels = []
         self.conversation_histories = []
         self.workers = []
         self.current_template = ""  # Store selected template
-        self.templates = self.load_templates()  # Load templates first
+        self.templates = ConfigManager.get_templates()  # Load templates first
 
         self.setWindowTitle("智械中心")
         self.setGeometry(100, 100, 1600, 700)
@@ -430,13 +63,14 @@ class MultiChatWindow(QMainWindow):
 
     def save_conversation_history(self):
         """保存对话历史到文件"""
-        with open('history.json', 'w') as f:
+        with open('./configFiles/history.json', 'w') as f:
             json.dump(self.conversation_histories, f)
+
 
     def load_conversation_history(self):
         """从文件加载对话历史"""
         try:
-            with open('history.json', 'r') as f:
+            with open('./configFiles/history.json', 'r') as f:
                 histories = json.load(f)
             for i, panel in enumerate(self.chat_panels):
                 if i < len(histories):
@@ -459,7 +93,7 @@ class MultiChatWindow(QMainWindow):
                                      QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self.conversation_histories = [[] for _ in self.chat_panels]
-            with open('history.json', 'w') as f:
+            with open('./configFiles/history.json', 'w') as f:
                 json.dump([], f)
             for panel in self.chat_panels:
                 panel.chat_display.clear()
@@ -637,17 +271,6 @@ class MultiChatWindow(QMainWindow):
             # 更新移除按钮状态
             self.remove_model_btn.setEnabled(len(self.chat_panels) > 1)
 
-    def load_templates(self):
-        try:
-            with open('prompts.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return {"templates": []}
-
-    def save_templates(self):
-        with open('prompts.json', 'w', encoding='utf-8') as f:
-            json.dump(self.templates, f, indent=4, ensure_ascii=False)
-
     def init_template_menu(self):
         # Create menu for template button
         self.template_menu = QMenu(self)
@@ -702,14 +325,14 @@ class MultiChatWindow(QMainWindow):
         self.template_button.setText(f"📝 当前模板: {template['name']}")
 
     def add_custom_template(self):
-        dialog = AddTemplateDialog(self)
+        dialog = TemplateDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_template = {
                 "name": dialog.name_input.text(),
                 "prompt": dialog.prompt_input.toPlainText()
             }
             self.templates['templates'].append(new_template)
-            self.save_templates()
+            ConfigManager.save_templates(self.templates)
 
             # Refresh template menu
             self.template_menu.clear()
@@ -749,7 +372,7 @@ class MultiChatWindow(QMainWindow):
                 selected_model['url'],
                 selected_model['model'],
                 selected_model.get('key', ''),
-                self.current_template,  # Use selected template
+                self.current_template,
                 i
             )
 

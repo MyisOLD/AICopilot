@@ -5,8 +5,9 @@ dist/
 *.xml
 
 *.spec
-config.json
-prompts.json
+configFiles/config.json
+configFiles/prompts.json
+configFiles/history.json
 test.*
 .env
 # Byte-compiled / optimized / DLL files
@@ -180,4 +181,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-/history.json
+/configFiles/history.json

@@ -16,7 +16,7 @@ def create_exe():
         '--name=智械中心V2',  # 可执行文件名
         '--windowed',  # 无控制台窗口
         # '--onefile',  # 打包成单个文件
-        '--icon=app_icon.ico',  # 应用图标（如果有）
+        '--icon=assets/app_icon.ico',  # 应用图标（如果有）
         # '--add-data=config.json;.',  # 添加配置文件
         # '--add-data=prompts.json;.',  # 添加提示词模板
         '--clean',  # 清理临时文件
