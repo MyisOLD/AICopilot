@@ -1,63 +1,41 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-
-name: Python application
+name: Build and Release Executables
 
 on:
   release:
     types: [published]
 
-permissions:
-  contents: write
-
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        arch: [x64, x86]
+    runs-on: ${{ matrix.os }}
 
     steps:
-    # 1. 拉取代码
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # 2. 设置 Python 环境
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.8"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
 
-    # 3. 安装依赖
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pyinstaller
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
 
-    # 4. 使用 PyInstaller 打包
-    - name: Build executable with PyInstaller
-      run: |
-        python build.py
+      - name: Run PyInstaller
+        run: |
+          python build.py
 
-    # 5. 将打包结果压缩成 zip 文件
-    - name: Create zip archive
-      run: |
-        cd dist
-        zip -r AICopilot.zip *
-
-    # 6. 检查文件是否存在
-    - name: Check if file exists
-      run: |
-        if [ ! -f ./dist/AICopilot.zip ]; then
-          echo "File not found!"
-          exit 1
-        fi
-
-    # 7. 上传压缩包到 GitHub Release
-    - name: Upload release assets
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./dist/AICopilot.zip
-        asset_name: AICopilot.zip
-        asset_content_type: application/zip
+      - name: Upload to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: dist/
+          asset_name: AICopilotV2_${{ matrix.os }}_${{ matrix.arch }}.${{ matrix.os == 'windows-latest' && 'exe' || 'bin' }}
+          asset_content_type: application/octet-stream
