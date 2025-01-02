@@ -1,4 +1,6 @@
 # build.py
+import time
+
 import PyInstaller.__main__
 import os
 import shutil
@@ -57,6 +59,15 @@ def get_platform_info():
 
     return platform_name, arch
 
+def clean_directory(dir_path):
+    """确保目录被彻底清理"""
+    if dir_path.exists():
+        shutil.rmtree(dir_path)
+        logging.info(f"清理目录: {dir_path}")
+        # 确保目录已被删除
+        while dir_path.exists():
+            time.sleep(0.1)
+
 
 def create_exe():
     """创建可执行文件"""
@@ -74,9 +85,7 @@ def create_exe():
 
         # 清理旧的构建文件
         for dir_path in (dist_dir, build_dir):
-            if dir_path.exists():
-                shutil.rmtree(dir_path)
-                logging.info(f"清理目录: {dir_path}")
+            clean_directory(dir_path)
 
         # 创建输出目录
         dist_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -91,7 +100,7 @@ def create_exe():
             '--windowed',
             '--clean',
             '--noconfirm',
-            f'--distpath={dist_dir}',
+            f'--distpath={dist_dir}',  # 直接输出到 dist/linux_x86_64
             '--icon=assets/app_icon.ico',
             '--log-level=INFO',
         ]
@@ -117,21 +126,12 @@ def create_exe():
 
         # 验证构建结果
         exe_name = "AICopilot.exe" if platform_name == 'windows' else "AICopilot"
-        expected_exe = dist_dir / "AICopilot" / exe_name
+        expected_exe = dist_dir / exe_name
 
         if not expected_exe.exists():
             raise BuildError(f"构建失败：未找到预期的可执行文件 {expected_exe}")
 
-        # 将文件移动到正确的位置
-        target_dir = dist_dir / "AICopilot"
-        if target_dir.exists():
-            # 移动所有文件到上一级目录
-            for item in target_dir.iterdir():
-                shutil.move(str(item), str(dist_dir))
-            # 删除空目录
-            target_dir.rmdir()
-
-        logging.info(f"构建成功: {dist_dir / exe_name}")
+        logging.info(f"构建成功: {expected_exe}")
 
     except BuildError as e:
         logging.error(f"构建错误: {e}")
@@ -139,7 +139,6 @@ def create_exe():
     except Exception as e:
         logging.error(f"未预期的错误: {e}", exc_info=True)
         sys.exit(1)
-
 
 if __name__ == '__main__':
     create_exe()
