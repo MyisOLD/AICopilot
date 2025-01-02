@@ -78,6 +78,7 @@ def create_exe():
     """创建可执行文件"""
     try:
         # 检查必需文件
+        APP_name="AICopilot"
         check_required_files()
 
         # 获取平台信息
@@ -101,7 +102,7 @@ def create_exe():
         # 基本 PyInstaller 参数
         args = [
             'main.py',
-            f'--name=AICopilot',
+            f'--name={APP_name}',
             '--windowed',
             '--clean',
             '--noconfirm',
@@ -138,7 +139,7 @@ def create_exe():
 
         # 验证构建结果
         exe_name = "AICopilot.exe" if platform_name == 'windows' else "AICopilot"
-        expected_exe = dist_dir / exe_name
+        expected_exe = dist_dir / APP_name / exe_name
 
         if not expected_exe.exists():
             raise BuildError(f"构建失败：未找到预期的可执行文件 {expected_exe}")
