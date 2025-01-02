@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     # 支持的平台和架构
     supported_platforms = ["linux", "windows"]
-    supported_archs = ["x86_64", "x86"]
+    supported_archs = ["x86_64", "x86", "amd64"]
 
     if platform_name not in supported_platforms:
         print(f"Unsupported platform: {platform_name}")
