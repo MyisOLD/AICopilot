@@ -125,6 +125,13 @@ def create_exe():
             else:
                 logging.warning(f"数据文件不存在，已跳过: {src}")
 
+        # 添加隐藏导入（如果需要）
+        hidden_imports = [
+            'module_name',  # 替换为实际需要隐藏导入的模块
+        ]
+        for module in hidden_imports:
+            args.append(f'--hidden-import={module}')
+
         # 运行 PyInstaller
         logging.info("开始 PyInstaller 构建")
         PyInstaller.__main__.run(args)
@@ -144,7 +151,6 @@ def create_exe():
     except Exception as e:
         logging.error(f"未预期的错误: {e}", exc_info=True)
         sys.exit(1)
-
 
 if __name__ == '__main__':
     create_exe()
