@@ -43,7 +43,15 @@ jobs:
         cd dist
         zip -r AICopilot.zip *
 
-    # 6. 上传压缩包到 GitHub Release
+    # 6. 检查文件是否存在
+    - name: Check if file exists
+      run: |
+        if [ ! -f ./dist/AICopilot.zip ]; then
+          echo "File not found!"
+          exit 1
+        fi
+
+    # 7. 上传压缩包到 GitHub Release
     - name: Upload release assets
       uses: actions/upload-release-asset@v1
       with:
