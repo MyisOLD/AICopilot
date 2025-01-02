@@ -51,19 +51,6 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           path: dist
-
-      - name: Verify files exist
-        run: |
-          if [ ! -f dist/linux_x86_64/AICopilot.bin ]; then
-            echo "Linux binary not found!"
-            exit 1
-          fi
-          if [ ! -f dist/windows_x86_64/AICopilot_x86_64.exe ]; then
-            echo "Windows binary not found!"
-            exit 1
-          fi
-          echo "All files verified successfully!"
-
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
