@@ -41,7 +41,7 @@ class MultiChatWindow(QMainWindow):
 
     def init_history(self):
         # 检查是否存在历史记录文件，并提示用户是否恢复会话
-        if os.path.exists('history.json'):
+        if os.path.exists('./configFiles/history.json'):
             reply = QMessageBox.question(self, '恢复会话', '是否恢复上次的会话？',
                                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
             if reply == QMessageBox.StandardButton.Yes:
