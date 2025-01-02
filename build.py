@@ -19,8 +19,8 @@ def create_exe(platform_name, arch):
         '--windowed',  # 无控制台窗口
         # '--onefile',  # 打包成单个文件
         '--icon=assets/app_icon.ico',  # 应用图标（如果有）
-        f'--add-data=configFiles/config_example.json{os.pathsep}.',  # 添加配置文件
-        f'--add-data=configFiles/prompts_example.json{os.pathsep}.',  # 添加提示词模板
+        f'--add-data=configFiles/config.json{os.pathsep}.',  # 添加配置文件
+        f'--add-data=configFiles/prompts.json{os.pathsep}.',  # 添加提示词模板
         '--clean',  # 清理临时文件
         '--noconfirm',  # 不确认覆盖
         f'--distpath={dist_dir}',  # 指定输出目录
