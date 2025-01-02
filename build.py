@@ -77,10 +77,7 @@ import PyInstaller.__main__
 def create_exe():
     """创建可执行文件"""
     try:
-        # 检查必需文件
-        APP_name="AICopilot"
-        check_required_files()
-
+        project_name = "AICopilot"
         # 获取平台信息
         platform_name, arch = get_platform_info()
         logging.info(f"开始构建 {platform_name}-{arch} 版本")
@@ -102,11 +99,11 @@ def create_exe():
         # 基本 PyInstaller 参数
         args = [
             'main.py',
-            f'--name={APP_name}',
+            f'--name={project_name}',
             '--windowed',
             '--clean',
             '--noconfirm',
-            f'--distpath={dist_dir}',  # 直接输出到 dist/windows_x86_64
+            f'--distpath={dist_dir}',  # 直接输出到 dist/{platform_name}_{arch}
             '--icon=assets/app_icon.ico',
             '--log-level=INFO',
         ]
@@ -126,20 +123,19 @@ def create_exe():
             else:
                 logging.warning(f"数据文件不存在，已跳过: {src}")
 
-        # 添加隐藏导入（如果需要）
-        hidden_imports = [
-            'module_name',  # 替换为实际需要隐藏导入的模块
-        ]
-        for module in hidden_imports:
-            args.append(f'--hidden-import={module}')
-
         # 运行 PyInstaller
         logging.info("开始 PyInstaller 构建")
         PyInstaller.__main__.run(args)
 
         # 验证构建结果
         exe_name = "AICopilot.exe" if platform_name == 'windows' else "AICopilot"
-        expected_exe = dist_dir / APP_name / exe_name
+          # 项目名称，应与 --name 参数一致
+
+        # 动态构建路径
+        if platform_name == 'windows':
+            expected_exe = dist_dir / project_name / exe_name  # Windows 下在子目录中
+        else:
+            expected_exe = dist_dir / exe_name  # Linux 下直接输出到 dist 目录
 
         if not expected_exe.exists():
             raise BuildError(f"构建失败：未找到预期的可执行文件 {expected_exe}")
