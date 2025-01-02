@@ -116,11 +116,22 @@ def create_exe():
         PyInstaller.__main__.run(args)
 
         # 验证构建结果
-        expected_exe = dist_dir / f"AICopilot{'exe' if platform_name == 'windows' else ''}"
+        exe_name = "AICopilot.exe" if platform_name == 'windows' else "AICopilot"
+        expected_exe = dist_dir / "AICopilot" / exe_name
+
         if not expected_exe.exists():
             raise BuildError(f"构建失败：未找到预期的可执行文件 {expected_exe}")
 
-        logging.info(f"构建成功: {expected_exe}")
+        # 将文件移动到正确的位置
+        target_dir = dist_dir / "AICopilot"
+        if target_dir.exists():
+            # 移动所有文件到上一级目录
+            for item in target_dir.iterdir():
+                shutil.move(str(item), str(dist_dir))
+            # 删除空目录
+            target_dir.rmdir()
+
+        logging.info(f"构建成功: {dist_dir / exe_name}")
 
     except BuildError as e:
         logging.error(f"构建错误: {e}")
