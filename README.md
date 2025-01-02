@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="/api/placeholder/128/128" alt="AICopilot Logo" />
+  <img src="assets/app_icon.ico" alt="AICopilot Logo" />
 </p>
 
 <h1 align="center">AICopilot</h1>
@@ -13,8 +13,11 @@
 </p>
 
 ## 🚀 简介
+> [!caution]
+> 本项目由100%AI驱动创建
 
 AICopilot 是一个强大的 AI 助手应用程序，它将 AI 的能力集成到你的桌面环境中。通过简单的界面，让你能够轻松地与 AI 进行对话，获取帮助，提高工作效率。
+
 
 ## ✨ 特性
 
