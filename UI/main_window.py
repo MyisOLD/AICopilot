@@ -4,7 +4,7 @@ import re
 
 import markdown2
 from PyQt6.QtCore import QSettings, QTimer
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QActionGroup
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QDialog, QMenu, QHBoxLayout, QGridLayout, QScrollArea, \
     QMessageBox
 
@@ -23,8 +23,9 @@ class MultiChatWindow(QMainWindow):
         self.chat_panels = []
         self.conversation_histories = []
         self.workers = []
-        self.current_template = ""  # Store selected template
-        self.templates = ConfigManager.get_templates()  # Load templates first
+        self.current_template = ""
+        self.templates = ConfigManager.get_templates()
+        self.layout_mode = "horizontal"  # 默认横向布局
 
         self.setWindowTitle("智械中心")
         self.setGeometry(100, 100, 1600, 700)
@@ -34,7 +35,7 @@ class MultiChatWindow(QMainWindow):
             }
         """)
         self.init_ui()
-        self.init_template_menu()  # Initialize template menu after UI
+        self.init_template_menu()
         self.init_theme()
         self.init_history()
 
@@ -144,7 +145,6 @@ class MultiChatWindow(QMainWindow):
         settings = QSettings("MyCompany", "ChatApp")
         settings.setValue("theme", "day" if style == self.day_style else "night")
 
-
     def init_ui(self):
         # Main container
         main_widget = QWidget()
@@ -153,7 +153,7 @@ class MultiChatWindow(QMainWindow):
         main_layout.setSpacing(8)
         self.setCentralWidget(main_widget)
 
-        # Top toolbar
+        # Top toolbar (creating buttons first)
         toolbar = QWidget()
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(0, 0, 0, 0)
@@ -162,15 +162,56 @@ class MultiChatWindow(QMainWindow):
         self.add_model_btn = StyledButton("➕ 添加模型")
         self.remove_model_btn = StyledButton("➖ 移除模型")
         self.template_button = StyledButton("📝 插入提示词")
-        self.clear_button = StyledButton("🧹 清空记忆")
+        self.clear_button = StyledButton("🧹 开始新对话")
+
+        # 布局设置按钮和菜单
+        self.layout_settings_btn = StyledButton("⚙️ 布局设置")
+        self.layout_menu = QMenu(self)
+        self.layout_menu.setStyleSheet("""
+            QMenu {
+                background-color: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 8px 24px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #f3f4f6;
+            }
+        """)
+
+        # 添加布局选项
+        self.horizontal_action = QAction("横向布局", self)
+        self.horizontal_action.setCheckable(True)
+        self.horizontal_action.setChecked(True)
+
+        self.grid_action = QAction("网格布局", self)
+        self.grid_action.setCheckable(True)
+
+        # 添加动作到菜单
+        self.layout_menu.addAction(self.horizontal_action)
+        self.layout_menu.addAction(self.grid_action)
+
+        # 设置动作组
+        layout_group = QActionGroup(self)
+        layout_group.addAction(self.horizontal_action)
+        layout_group.addAction(self.grid_action)
+        layout_group.setExclusive(True)
+
+        # 连接布局设置相关的信号
+        self.layout_settings_btn.clicked.connect(self.show_layout_menu)
+        self.horizontal_action.triggered.connect(lambda: self.change_layout_mode("horizontal"))
+        self.grid_action.triggered.connect(lambda: self.change_layout_mode("grid"))
 
         toolbar_layout.addWidget(self.add_model_btn)
         toolbar_layout.addWidget(self.remove_model_btn)
+        toolbar_layout.addWidget(self.layout_settings_btn)
         toolbar_layout.addWidget(self.template_button)
         toolbar_layout.addWidget(self.clear_button)
         toolbar_layout.addStretch()
-
-        main_layout.addWidget(toolbar)
 
         # Chat panels container
         scroll = QScrollArea()
@@ -190,11 +231,13 @@ class MultiChatWindow(QMainWindow):
         self.chat_layout.setSpacing(16)
         scroll.setWidget(self.chat_container)
 
-        # Add initial chat panels
+        # Add chat panels after creating buttons
         self.add_chat_panel()
         self.add_chat_panel()
 
+        # Layout assembly
         main_layout.addWidget(scroll)
+        main_layout.addWidget(toolbar)
 
         # Input area
         input_area = QWidget()
@@ -228,8 +271,8 @@ class MultiChatWindow(QMainWindow):
         main_layout.addWidget(input_area)
 
         # 设置主布局的拉伸因子
-        main_layout.setStretch(0, 0)  # toolbar
-        main_layout.setStretch(1, 85)  # chat area
+        main_layout.setStretch(0, 85)  # chat area
+        main_layout.setStretch(1, 0)  # toolbar
         main_layout.setStretch(2, 15)  # input area
 
         self.template_button.clicked.connect(self.show_template_menu)
@@ -243,14 +286,22 @@ class MultiChatWindow(QMainWindow):
         panel_index = len(self.chat_panels)
         panel = ChatPanel(panel_index, self.models)
 
-        # 计算网格位置
-        row = panel_index // 2
-        col = panel_index % 2
-
-        self.chat_layout.addWidget(panel, row, col)
         self.chat_panels.append(panel)
         self.conversation_histories.append([])
         self.workers.append(None)
+
+        # 根据当前布局模式重新排列面板
+        if self.layout_mode == "horizontal":
+            # 横向布局
+            width = int(100 / len(self.chat_panels))
+            for i, panel in enumerate(self.chat_panels):
+                panel.setMinimumWidth(self.width() // len(self.chat_panels))
+            self.chat_layout.addWidget(panel, 0, panel_index)
+        else:
+            # 网格布局
+            row = panel_index // 2
+            col = panel_index % 2
+            self.chat_layout.addWidget(panel, row, col)
 
         # 更新移除按钮状态
         self.remove_model_btn.setEnabled(len(self.chat_panels) > 1)
@@ -270,6 +321,50 @@ class MultiChatWindow(QMainWindow):
 
             # 更新移除按钮状态
             self.remove_model_btn.setEnabled(len(self.chat_panels) > 1)
+
+    def show_layout_menu(self):
+        """显示布局设置菜单"""
+        pos = self.layout_settings_btn.mapToGlobal(
+            self.layout_settings_btn.rect().bottomLeft()
+        )
+        self.layout_menu.popup(pos)  # 使用 popup 而不是 exec
+
+    def change_layout_mode(self, mode):
+        """改变布局模式"""
+        print(f"Changing layout to: {mode}")  # 用于调试
+        self.layout_mode = mode
+        self.rearrange_panels()
+
+    def rearrange_panels(self):
+        """重新排列所有面板"""
+        # 记住滚动条位置
+        scroll_area = self.chat_container.parent()
+        current_scroll = scroll_area.verticalScrollBar().value()
+
+        # 清除现有布局中的所有面板
+        for i in reversed(range(self.chat_layout.count())):
+            item = self.chat_layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+
+        if self.layout_mode == "horizontal":
+            # 横向布局：所有面板在一行
+            for i, panel in enumerate(self.chat_panels):
+                self.chat_layout.addWidget(panel, 0, i)
+                # 设置最小宽度以确保均匀分布
+                panel.setMinimumWidth(self.width() // len(self.chat_panels))
+        else:
+            # 网格布局：每行两个面板
+            for i, panel in enumerate(self.chat_panels):
+                row = i // 2
+                col = i % 2
+                self.chat_layout.addWidget(panel, row, col)
+                # 重置宽度限制
+                panel.setMinimumWidth(0)
+
+        # 恢复滚动条位置
+        scroll_area.verticalScrollBar().setValue(current_scroll)
+
 
     def init_template_menu(self):
         # Create menu for template button
