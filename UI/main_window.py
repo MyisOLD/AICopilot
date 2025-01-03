@@ -191,6 +191,7 @@ class MultiChatWindow(QMainWindow):
         self.grid_action = QAction("网格布局", self)
         self.grid_action.setCheckable(True)
 
+
         # 添加动作到菜单
         self.layout_menu.addAction(self.horizontal_action)
         self.layout_menu.addAction(self.grid_action)
