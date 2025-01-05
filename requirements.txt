@@ -3,3 +3,8 @@ openai
 pyinstaller
 Pillow
 markdown2
+PyMuPDF
+chardet
+tiktoken
+scikit-learn
+numpy

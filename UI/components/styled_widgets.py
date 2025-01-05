@@ -1,8 +1,8 @@
 # chat_app/ui/components/styled_widgets.py
-
-from PyQt6.QtWidgets import (QPushButton, QComboBox, QCheckBox, QTextEdit, 
-                           QPlainTextEdit,QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import (QPushButton, QComboBox, QCheckBox, QTextEdit,
+                             QPlainTextEdit, QGraphicsOpacityEffect, QMenu)
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtSignal
 
 
 class StyledButton(QPushButton):
@@ -133,6 +133,7 @@ class StyledCheckBox(QCheckBox):
         """)
 
 class StyledTextEdit(QTextEdit):
+    quote_requested = pyqtSignal(str)  # 新增信号用于传递引用文本
     def __init__(self):
         super().__init__()
         self.setStyleSheet("""
@@ -150,6 +151,52 @@ class StyledTextEdit(QTextEdit):
                 outline: none;
             }
         """)
+        self.setup_context_menu()
+
+    def setup_context_menu(self):
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
+
+    def show_context_menu(self, pos):
+        menu = QMenu(self)
+
+        # 只有在有选中文本时才添加引用动作
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            quote_action = QAction("引用选中文本", self)
+            quote_action.setShortcut("Ctrl+Q")
+            quote_action.triggered.connect(self.handle_quote_request)
+            menu.addAction(quote_action)
+            menu.addSeparator()
+
+        # 使用标准上下文菜单的动作
+        standard_menu = self.createStandardContextMenu()
+        for action in standard_menu.actions():
+            new_action = QAction(action.text(), self)
+            new_action.setShortcut(action.shortcut())
+            new_action.setEnabled(action.isEnabled())
+            new_action.triggered.connect(action.trigger)
+            menu.addAction(new_action)
+
+        # 在调用前释放标准菜单
+        standard_menu.deleteLater()
+
+        menu.exec(self.mapToGlobal(pos))
+
+    def handle_quote_request(self):
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            selected_text = cursor.selectedText()
+            # 发射信号，传递选中的文本
+            self.quote_requested.emit(selected_text)
+
+    def keyPressEvent(self, event):
+        # 添加快捷键支持
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Q:
+            self.handle_quote_request()
+        else:
+            super().keyPressEvent(event)
+
 
 class StyledPlainTextEdit(QPlainTextEdit):
     def __init__(self, parent=None, window=None):
@@ -170,6 +217,22 @@ class StyledPlainTextEdit(QPlainTextEdit):
                 outline: none;
             }
         """)
+
+    def insert_quote(self, text):
+        # 在当前光标位置插入引用文本
+        quoted_text = "\n".join(f"> {line}" for line in text.split("\n"))
+        current_text = self.toPlainText()
+
+        if current_text:
+            # 如果输入框已有内容，添加换行符
+            quoted_text = "\n" + quoted_text
+
+        # 在末尾添加一个换行，方便用户继续输入
+        quoted_text += "\n"
+
+        cursor = self.textCursor()
+        cursor.insertText(quoted_text)
+        self.setFocus()  # 将焦点设置到输入框
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return and not event.modifiers():
