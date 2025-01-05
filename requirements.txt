@@ -3,3 +3,5 @@ openai
 pyinstaller
 Pillow
 markdown2
+PyMuPDF==1.23.8
+chardet==5.2.0

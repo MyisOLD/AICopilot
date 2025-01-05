@@ -12,6 +12,9 @@ class ChatPanel(QFrame):
         self.init_ui(models)
         self.current_response = ""  # Store current streaming response
 
+        # 连接引用信号
+        self.chat_display.quote_requested.connect(self.handle_quote_request)
+
     def init_ui(self, models):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -77,4 +80,10 @@ class ChatPanel(QFrame):
                 transition: box-shadow 0.3s ease-in-out;
             }
         """)
+
+    def handle_quote_request(self, text):
+        # 获取主窗口的输入框并插入引用文本
+        main_window = self.window()
+        if main_window and hasattr(main_window, 'input_box'):
+            main_window.input_box.insert_quote(text)
 
