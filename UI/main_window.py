@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QDialog, QMenu, Q
     QMessageBox
 
 from services import StreamWorker
+from .components.file_upload_button import FileUploadButton, FileUploadStatus
 from .components.styled_widgets import StyledButton, StyledPlainTextEdit
 from .components.chat_panel import ChatPanel
 from .components.template_dialog import TemplateDialog
@@ -83,7 +84,7 @@ class MultiChatWindow(QMainWindow):
                                 f'<div style="color: #2563eb; margin: 8px 0;"><b>您:</b> {message["content"]}</div>')
                         else:
                             panel.chat_display.append(
-                                f'<div style="margin: 8px 0;"><b>AI助手:</b> {message["content"]}</div>')
+                                f'<div style="margin: 8px 0;"><b><span style="color: green;">AI助手:</b> {message["content"]}</div>')
         except Exception as e:
             print(f"加载历史记录失败: {e}")
 
@@ -206,7 +207,9 @@ class MultiChatWindow(QMainWindow):
         self.layout_settings_btn.clicked.connect(self.show_layout_menu)
         self.horizontal_action.triggered.connect(lambda: self.change_layout_mode("horizontal"))
         self.grid_action.triggered.connect(lambda: self.change_layout_mode("grid"))
+        self.file_upload_btn = FileUploadButton()
 
+        toolbar_layout.addWidget(self.file_upload_btn)
         toolbar_layout.addWidget(self.add_model_btn)
         toolbar_layout.addWidget(self.remove_model_btn)
         toolbar_layout.addWidget(self.layout_settings_btn)
@@ -214,6 +217,7 @@ class MultiChatWindow(QMainWindow):
         toolbar_layout.addWidget(self.clear_button)
         toolbar_layout.addStretch()
 
+        # self.file_upload_btn.file_content_ready.connect(self.handle_file_content)
         # Chat panels container
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -240,30 +244,62 @@ class MultiChatWindow(QMainWindow):
         main_layout.addWidget(scroll)
         main_layout.addWidget(toolbar)
 
-        # Input area
+        # Input area - Fix sizing issues
         input_area = QWidget()
-        input_area.setMaximumHeight(self.height() * 0.2)
+        input_area.setFixedHeight(120)  # Set fixed height for input area
         input_layout = QHBoxLayout(input_area)
         input_layout.setContentsMargins(0, 0, 0, 0)
         input_layout.setSpacing(12)
 
-        # 创建输入框容器
+        # 添加文件上传区域
+        # File upload status and input box container
         input_container = QWidget()
-        input_container.setMinimumHeight(80)
-        input_container.setMaximumHeight(100)
-
-        self.input_box = StyledPlainTextEdit(window=self)
-        self.input_box.setPlaceholderText("在此输入您的问题...")
-
-        # 将输入框添加到容器中
         input_container_layout = QVBoxLayout(input_container)
         input_container_layout.setContentsMargins(0, 0, 0, 0)
+        input_container_layout.setSpacing(4)  # Add spacing between status and input
+
+        # File upload status with improved visibility
+        self.file_status = FileUploadStatus()
+        self.file_status.setFixedHeight(30)  # Set fixed height for status
+        self.file_status.setVisible(False)  # Initially hidden
+        input_container_layout.addWidget(self.file_status)
+
+
+        # Input box with proper sizing
+        self.input_box = StyledPlainTextEdit(window=self)
+        self.input_box.setPlaceholderText("在此输入您的问题...")
+        self.input_box.setMinimumHeight(60)  # Minimum height for input box
         input_container_layout.addWidget(self.input_box)
 
-        # 修改发送按钮样式
+
+        # 连接信号
+        self.file_upload_btn.file_content_ready.connect(self.handle_file_upload)
+        self.file_status.file_removed.connect(self.handle_file_remove)
+
+        # Send button with consistent height
         self.send_button = StyledButton("发送", "primary")
-        self.send_button.setMinimumHeight(80)
-        self.send_button.setMaximumHeight(100)
+        self.send_button.setFixedWidth(100)  # Fixed width for send button
+        self.send_button.setFixedHeight(90)  # Match container height
+        self.send_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2563eb;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QPushButton:pressed {
+                background-color: #1e40af;
+            }
+            QPushButton:disabled {
+                background-color: #93c5fd;
+            }
+        """)
 
         # 使用比例布局：输入框占90%，按钮占10%
         input_layout.addWidget(input_container, 95)
@@ -282,6 +318,30 @@ class MultiChatWindow(QMainWindow):
         self.clear_button.clicked.connect(self.clear_memory)
         self.add_model_btn.clicked.connect(self.add_chat_panel)
         self.remove_model_btn.clicked.connect(self.remove_chat_panel)
+
+    def handle_file_upload(self, content):
+        """处理文件上传"""
+        file_name = os.path.basename(self.sender().property("last_file_path"))
+        self.file_status.add_file(file_name, content)
+
+    def handle_file_remove(self, file_name):
+        """
+        处理单个文件删除的事件
+        file_name: 被删除的文件名
+        """
+        if not self.file_status.files:
+            # 没有文件时，重置任何相关的状态
+            self.file_status.setVisible(False)
+
+
+
+    # def handle_file_content(self, content):
+    #     """处理上传的文件内容"""
+    #     # 将文件内容添加到输入框
+    #     self.input_box.setPlainText(content)
+    #     # 可选：自动聚焦到输入框
+    #     self.input_box.setFocus()
+
 
     def add_chat_panel(self):
         panel_index = len(self.chat_panels)
@@ -436,10 +496,26 @@ class MultiChatWindow(QMainWindow):
 
     def send_message(self):
         user_message = self.input_box.toPlainText()
-        if not user_message:
+        files = self.file_status.get_all_files()
+
+        if not user_message and not files:
             return
 
         self.input_box.clear()
+
+        # 准备消息内容
+        display_message = user_message
+        api_message = user_message
+
+        # 如果有上传的文件,添加到消息中
+        if files:
+            file_names = list(files.keys())
+            display_message = f"{user_message}\n[已上传文件: {', '.join(file_names)}]"
+
+            # 添加所有文件内容
+            api_message = f"{user_message}\n\n文件内容:\n"
+            for name, content in files.items():
+                api_message += f"\n--- {name} ---\n{content}\n"
 
         for i, panel in enumerate(self.chat_panels):
             if not panel.enable_checkbox.isChecked():
@@ -448,23 +524,26 @@ class MultiChatWindow(QMainWindow):
             panel.loading_indicator.start()
             panel.current_response = ""
 
-            # Add user message with HTML formatting
+            # 添加用户消息到聊天显示
             panel.chat_display.append(
-                f'<div style="color: #2563eb; margin: 8px 0;"><b>您:</b> {user_message}</div>'
+                f'<div style="color: #2563eb; margin: 8px 0;"><b>您:</b> {display_message}</div>'
             )
-            panel.chat_display.append('<div style="margin: 8px 0;"><b>AI助手:</b> ')
+            panel.chat_display.append('<div style="margin: 8px 0;"><b><span style="color: green;">AI助手:</b> ')
 
             selected_model = self.models[panel.model_combo.currentIndex()]
 
-            self.conversation_histories[i].append({"role": "user", "content": user_message})
+            # 更新对话历史
+            self.conversation_histories[i].append({"role": "user", "content": api_message})
 
+            # 停止任何正在运行的worker
             if self.workers[i] and self.workers[i].isRunning():
                 self.workers[i].terminate()
                 self.workers[i].wait()
 
+            # 创建并启动新的worker
             self.workers[i] = StreamWorker(
                 self.conversation_histories[i].copy(),
-                user_message,
+                api_message,
                 selected_model['url'],
                 selected_model['model'],
                 selected_model.get('key', ''),
@@ -508,30 +587,33 @@ class MultiChatWindow(QMainWindow):
                 re.MULTILINE
             )
 
+            # 删除流式输出的原始内容
+            cursor = panel.chat_display.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            cursor.movePosition(cursor.MoveOperation.StartOfBlock, cursor.MoveMode.KeepAnchor)
+            cursor.removeSelectedText()
+
             if has_markdown:
                 # 将 Markdown 转换为 HTML
                 html_content = markdown2.markdown(
                     panel.current_response,
                     extras=['fenced-code-blocks', 'tables', 'break-on-newline']
                 )
-
-                # 替换流式输出的文本为渲染后的 HTML
-                cursor = panel.chat_display.textCursor()
-                cursor.movePosition(cursor.MoveOperation.End)
-                cursor.movePosition(cursor.MoveOperation.StartOfBlock, cursor.MoveMode.KeepAnchor)
-                cursor.removeSelectedText()
-
                 # 插入带有样式的 HTML
                 styled_html = f"""
-                    <div style="margin: 8px 0;">
-                        <b>AI助手:</b>
-                        <div style="margin-top: 4px;">{html_content}</div>
-                    </div>
-                """
+                        <div style="margin: 8px 0;">
+                            <b><span style="color: green;">AI助手:</b>
+                            <div style="margin-top: 4px;">{html_content}</div>
+                        </div>
+                    """
                 cursor.insertHtml(styled_html)
             else:
-                # 如果没有 Markdown 语法，则保持原有内容不变
-                pass
+                # 如果没有 Markdown 语法，插入纯文本
+                cursor.insertHtml(f"""
+                        <div style="margin: 8px 0;">
+                            <b><span style="color: green;">AI助手:</b> {panel.current_response}
+                        </div>
+                    """)
 
             # 更新对话历史
             self.conversation_histories[model_index].append({
