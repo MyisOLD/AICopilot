@@ -587,33 +587,30 @@ class MultiChatWindow(QMainWindow):
                 re.MULTILINE
             )
 
-            # 删除流式输出的原始内容
-            cursor = panel.chat_display.textCursor()
-            cursor.movePosition(cursor.MoveOperation.End)
-            cursor.movePosition(cursor.MoveOperation.StartOfBlock, cursor.MoveMode.KeepAnchor)
-            cursor.removeSelectedText()
-
             if has_markdown:
                 # 将 Markdown 转换为 HTML
                 html_content = markdown2.markdown(
                     panel.current_response,
                     extras=['fenced-code-blocks', 'tables', 'break-on-newline']
                 )
+
+                # 替换流式输出的文本为渲染后的 HTML
+                cursor = panel.chat_display.textCursor()
+                cursor.movePosition(cursor.MoveOperation.End)
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock, cursor.MoveMode.KeepAnchor)
+                cursor.removeSelectedText()
+
                 # 插入带有样式的 HTML
                 styled_html = f"""
-                        <div style="margin: 8px 0;">
-                            <b><span style="color: green;">AI助手:</b>
-                            <div style="margin-top: 4px;">{html_content}</div>
-                        </div>
-                    """
+                    <div style="margin: 8px 0;">
+                        <b><span style="color: green;">AI助手:</b>
+                        <div style="margin-top: 4px;">{html_content}</div>
+                    </div>
+                """
                 cursor.insertHtml(styled_html)
             else:
-                # 如果没有 Markdown 语法，插入纯文本
-                cursor.insertHtml(f"""
-                        <div style="margin: 8px 0;">
-                            <b><span style="color: green;">AI助手:</b> {panel.current_response}
-                        </div>
-                    """)
+                # 如果没有 Markdown 语法，则保持原有内容不变
+                pass
 
             # 更新对话历史
             self.conversation_histories[model_index].append({
