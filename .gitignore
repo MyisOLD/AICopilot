@@ -6,6 +6,8 @@ dist/
 
 *.spec
 configFiles/history.json
+configFiles/prompts.json
+configFiles/config.json
 test.*
 .env
 # Byte-compiled / optimized / DLL files
